@@ -1,0 +1,10 @@
+node_modules
+dist
+.env*
+!.env.example
+.npm-cache
+.local-backups/
+public/data/fan-growth.json
+public/data/fan-growth/
+*.tsbuildinfo
+.vercel/
