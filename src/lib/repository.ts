@@ -4,6 +4,7 @@ import type {
   FanGrowthDatasetsResponse,
   FanGrowthDatasetUpsertRequest,
   FanGrowthPeriodsResponse,
+  MemberRegistryResponse,
 } from "./apiTypes";
 import { buildApiUrl, dataSourceMode, type DataSourceMode } from "./config";
 import {
@@ -22,6 +23,7 @@ import type {
 } from "../features/fan-growth/fanGrowthTypes";
 import type { FanGrowthCategory } from "./types";
 import { getAdminPassword } from "./admin";
+import { saveMemberRegistry, type MemberRegistry } from "./memberRegistry";
 import {
   comparePeriodIdsAsc,
   sortPeriodSummaries,
@@ -98,6 +100,7 @@ export type DataRepository = {
   upsertDataset: (
     dataset: FanGrowthUploadDataset,
   ) => Promise<FanGrowthDataset>;
+  upsertMemberRegistry: (registry: MemberRegistry) => Promise<MemberRegistry>;
 };
 
 function buildLocalPeriodSummary(dataset: FanGrowthDataset): FanGrowthPeriodSummary {
@@ -196,10 +199,35 @@ async function upsertDataset(
   return data.dataset;
 }
 
+async function upsertMemberRegistry(
+  registry: MemberRegistry,
+): Promise<MemberRegistry> {
+  if (dataSourceMode === "local") {
+    saveMemberRegistry(registry);
+    return registry;
+  }
+
+  const data = await requestJson<MemberRegistryResponse>(
+    "/admin/member-registry",
+    withAdminPassword({
+      method: "POST",
+      body: JSON.stringify(registry),
+    }),
+  );
+
+  if (!data.memberRegistry) {
+    throw new Error("업데이트한 멤버 레지스트리를 확인할 수 없습니다.");
+  }
+
+  saveMemberRegistry(data.memberRegistry);
+  return data.memberRegistry;
+}
+
 export const dataRepository: DataRepository = {
   mode: dataSourceMode,
   listDatasets,
   listPeriods,
   getDataset,
   upsertDataset,
+  upsertMemberRegistry,
 };

@@ -13,6 +13,7 @@ import type { FanGrowthPeriodSummary } from "./fanGrowthTypes";
 import {
   FAN_GROWTH_CATEGORIES,
   getCategoryTitle,
+  normalizeUploadedMemberRegistry,
   normalizeUploadedDataset,
 } from "./fanGrowthUtils";
 
@@ -74,8 +75,10 @@ export function AdminView({
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [uploadingCategory, setUploadingCategory] = useState<FanGrowthCategory | null>(null);
+  const [isUpdatingMemberRegistry, setIsUpdatingMemberRegistry] = useState(false);
   const southMonthlyInputRef = useRef<HTMLInputElement | null>(null);
   const northMonthlyInputRef = useRef<HTMLInputElement | null>(null);
+  const memberRegistryInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -160,6 +163,34 @@ export function AdminView({
     }
   }
 
+  async function handleMemberRegistryUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsUpdatingMemberRegistry(true);
+    setError("");
+    setNotice("");
+
+    try {
+      const payload = await readJsonFile(file);
+      const registry = normalizeUploadedMemberRegistry(payload);
+      const savedRegistry = await dataRepository.upsertMemberRegistry(registry);
+      setNotice(
+        `멤버 레지스트리를 갱신했습니다. 남극곰 ${savedRegistry.south.length}명 · 북극곰 ${savedRegistry.north.length}명`,
+      );
+    } catch (uploadError) {
+      console.error(uploadError);
+      setError(
+        uploadError instanceof Error
+          ? uploadError.message
+          : "멤버 레지스트리 갱신 중 오류가 발생했습니다.",
+      );
+    } finally {
+      setIsUpdatingMemberRegistry(false);
+      event.target.value = "";
+    }
+  }
+
   if (!isUnlocked) {
     return (
       <div className="mx-auto max-w-2xl rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_20px_70px_rgba(15,23,42,0.08)] md:p-8">
@@ -202,13 +233,29 @@ export function AdminView({
       <section className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_20px_70px_rgba(15,23,42,0.06)]">
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-3xl font-semibold tracking-tight text-slate-900">관리자</h2>
-          <button
-            type="button"
-            onClick={handleLock}
-            className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-          >
-            잠그기
-          </button>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <button
+              type="button"
+              aria-label="멤버 레지스트리 업로드 안내"
+              title="south와 north 배열을 포함한 member-registry.json 전체 파일을 UTF-8 JSON으로 업로드합니다. 각 항목은 memberId와 name을 가져야 합니다. 기존 memberId는 삭제하지 말고, 다른 사람에게 재사용하지 마세요. 새 ID를 추가하면 이후 월간 JSON 업로드에서 사용할 수 있습니다."
+              className="grid h-9 w-9 place-items-center rounded-full border border-slate-300 bg-white text-sm font-bold text-slate-500 hover:border-slate-500 hover:text-slate-800"
+            >ⓘ</button>
+            <button
+              type="button"
+              onClick={() => memberRegistryInputRef.current?.click()}
+              disabled={isUpdatingMemberRegistry || uploadingCategory !== null}
+              className="rounded-2xl bg-sky-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isUpdatingMemberRegistry ? "레지스트리 갱신 중..." : "멤버 레지스트리 갱신"}
+            </button>
+            <button
+              type="button"
+              onClick={handleLock}
+              className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+            >
+              잠그기
+            </button>
+          </div>
         </div>
 
         {error ? (
@@ -221,6 +268,13 @@ export function AdminView({
             {notice}
           </div>
         ) : null}
+        <input
+          ref={memberRegistryInputRef}
+          type="file"
+          accept="application/json,.json"
+          className="hidden"
+          onChange={(event) => void handleMemberRegistryUpload(event)}
+        />
       </section>
 
       <section className="grid gap-6 xl:grid-cols-3">
@@ -232,7 +286,7 @@ export function AdminView({
               ? southMonthlyInputRef
               : northMonthlyInputRef;
           const isUploading = uploadingCategory === category;
-          const isBusy = uploadingCategory !== null;
+          const isBusy = uploadingCategory !== null || isUpdatingMemberRegistry;
 
           return (
             <div

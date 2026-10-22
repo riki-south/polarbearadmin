@@ -77,6 +77,56 @@ function isLikelyBrokenName(name) {
   );
 }
 
+function normalizeMemberRegistryGroup(records, category, groupName) {
+  if (!Array.isArray(records)) {
+    throw badRequest(`member-registry.json must contain a ${groupName} array.`);
+  }
+
+  const seenMemberIds = new Set();
+  return records.map((member, index) => {
+    if (!member || typeof member !== "object" || Array.isArray(member)) {
+      throw badRequest(`${groupName}[${index}] must be an object.`);
+    }
+
+    const memberId = readMemberId(member.memberId, category, `${groupName}[${index}].memberId`);
+    if (seenMemberIds.has(memberId)) {
+      throw badRequest(`${groupName} contains duplicate memberId ${memberId}.`);
+    }
+    seenMemberIds.add(memberId);
+
+    const name = readRequiredString(member.name, `${groupName}[${index}].name`);
+    if (isLikelyBrokenName(name)) {
+      throw badRequest(`${groupName}[${index}].name appears to have broken text encoding.`);
+    }
+
+    return { memberId, name };
+  });
+}
+
+function normalizeMemberRegistry(payload) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw badRequest("member-registry.json must be an object.");
+  }
+
+  return {
+    south: normalizeMemberRegistryGroup(payload.south, "south-monthly", "south"),
+    north: normalizeMemberRegistryGroup(payload.north, "north-monthly", "north"),
+  };
+}
+
+function rejectRemovedMembers(currentRegistry, nextRegistry) {
+  for (const group of ["south", "north"]) {
+    const currentIds = new Set((currentRegistry?.[group] ?? []).map((member) => member.memberId));
+    const nextIds = new Set(nextRegistry[group].map((member) => member.memberId));
+    const removedIds = [...currentIds].filter((memberId) => !nextIds.has(memberId));
+    if (removedIds.length > 0) {
+      throw badRequest(
+        `기존 ${group} memberId는 삭제할 수 없습니다: ${removedIds.join(", ")}. 기존 ID를 유지한 전체 레지스트리를 업로드해 주세요.`,
+      );
+    }
+  }
+}
+
 function readRequiredString(value, label) {
   if (typeof value !== "string" || value.trim() === "") {
     throw badRequest(`${label} is required.`);
@@ -553,4 +603,14 @@ export async function upsertFanGrowthDataset(bodyText, event) {
   return {
     dataset: resolvedDataset,
   };
+}
+
+export async function upsertMemberRegistry(bodyText, event) {
+  requireAdminPassword(event);
+  const registry = normalizeMemberRegistry(parseJsonBody(bodyText));
+  const currentRegistry = await readJsonObject(FAN_GROWTH_REGISTRY_KEY);
+  rejectRemovedMembers(currentRegistry, registry);
+  await writeJsonObject(FAN_GROWTH_REGISTRY_KEY, registry);
+
+  return { memberRegistry: registry };
 }

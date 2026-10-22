@@ -1,5 +1,5 @@
 import type { FanGrowthCategory } from "../../lib/types";
-import memberRegistry from "../../../data-source/fan-growth/member-registry.json";
+import { getMemberRegistry, type MemberRegistry } from "../../lib/memberRegistry";
 import {
   getExpectedMemberIdPrefix,
   isMonthlyCategory as isSharedMonthlyCategory,
@@ -20,9 +20,6 @@ import type {
 const MONTHLY_PERIOD_PATTERN = /^(\d{4})-(\d{2})$/;
 const WEEKLY_PERIOD_PATTERN = /^(\d{4})-W(\d{2})$/i;
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
-const SOUTH_MEMBER_IDS = new Set(memberRegistry.south.map((record) => record.memberId));
-const NORTH_MEMBER_IDS = new Set(memberRegistry.north.map((record) => record.memberId));
-
 export const FAN_GROWTH_CATEGORIES: FanGrowthCategory[] = [
   "south-monthly",
   "north-monthly",
@@ -40,6 +37,16 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function isLikelyBrokenString(value: string): boolean {
+  return (
+    value.includes("\uFFFD") ||
+    /[\uF900-\uFAFF]/.test(value) ||
+    /\?{2,}/.test(value) ||
+    /\?[^\x00-\x7F]/.test(value) ||
+    /[^\x00-\x7F]\?/.test(value)
+  );
+}
+
 function readString(value: unknown, label: string): string {
   if (typeof value !== "string" || value.trim() === "") {
     throw new Error(`${label} 값이 필요합니다.`);
@@ -55,6 +62,61 @@ function readName(value: unknown, label: string): string {
 
   const trimmed = value.trim();
   return trimmed === "" ? "_" : trimmed;
+}
+
+export function normalizeUploadedMemberRegistry(payload: unknown): MemberRegistry {
+  if (!isObject(payload) || !Array.isArray(payload.south) || !Array.isArray(payload.north)) {
+    throw new Error("JSON에 south와 north 배열이 필요합니다.");
+  }
+
+  const normalizeGroup = (
+    records: unknown[],
+    category: FanGrowthCategory,
+    groupName: "south" | "north",
+  ) => {
+    const seenMemberIds = new Set<string>();
+    return records.map((record, index) => {
+      if (!isObject(record)) {
+        throw new Error(`${groupName}[${index}] 항목은 객체여야 합니다.`);
+      }
+
+      const memberId = normalizeMemberId(record.memberId, category);
+      if (!memberId) {
+        throw new Error(`${groupName}[${index}].memberId 형식이 올바르지 않습니다.`);
+      }
+      if (seenMemberIds.has(memberId)) {
+        throw new Error(`${groupName}에 중복된 memberId가 있습니다: ${memberId}`);
+      }
+      seenMemberIds.add(memberId);
+
+      const name = readName(record.name, `${groupName}[${index}].name`);
+      if (isLikelyBrokenString(name)) {
+        throw new Error(`${groupName}[${index}].name의 문자 인코딩을 확인해 주세요.`);
+      }
+
+      return { memberId, name };
+    });
+  };
+
+  const registry: MemberRegistry = {
+    south: normalizeGroup(payload.south, "south-monthly", "south"),
+    north: normalizeGroup(payload.north, "north-monthly", "north"),
+  };
+  const currentRegistry = getMemberRegistry();
+
+  for (const groupName of ["south", "north"] as const) {
+    const nextIds = new Set(registry[groupName].map((member) => member.memberId));
+    const removedIds = currentRegistry[groupName]
+      .map((member) => member.memberId)
+      .filter((memberId) => !nextIds.has(memberId));
+    if (removedIds.length > 0) {
+      throw new Error(
+        `기존 ${groupName} memberId는 삭제할 수 없습니다: ${removedIds.join(", ")}. 기존 ID를 유지한 전체 레지스트리를 선택해 주세요.`,
+      );
+    }
+  }
+
+  return registry;
 }
 
 function readOptionalNumber(value: unknown, label: string): number | undefined {
@@ -266,7 +328,10 @@ export function normalizeUploadedDataset(
     normalizeUploadRecord(record, category, index),
   );
   const duplicateMemberIds = new Set<string>();
-  const registeredMemberIds = category === "south-monthly" ? SOUTH_MEMBER_IDS : NORTH_MEMBER_IDS;
+  const registryGroup = category === "south-monthly" ? "south" : "north";
+  const registeredMemberIds = new Set(
+    getMemberRegistry()[registryGroup].map((member) => member.memberId),
+  );
 
   for (const record of records) {
     if (duplicateMemberIds.has(record.memberId)) {

@@ -3,6 +3,7 @@ import type {
   FanGrowthPeriodSummary,
   FanGrowthUploadDataset,
 } from "../features/fan-growth/fanGrowthTypes";
+import type { MemberRegistry } from "./memberRegistry";
 export type ApiSuccessEnvelope<T> = {
   success: true;
   data: T;
@@ -31,3 +32,7 @@ export type FanGrowthDatasetResponse = {
 };
 
 export type FanGrowthDatasetUpsertRequest = FanGrowthUploadDataset;
+
+export type MemberRegistryResponse = {
+  memberRegistry: MemberRegistry;
+};

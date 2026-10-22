@@ -2,6 +2,7 @@ import {
   getFanGrowthDataset,
   listFanGrowthDatasets,
   listFanGrowthPeriods,
+  upsertMemberRegistry,
   upsertFanGrowthDataset,
 } from "./lib/fan-growth.mjs";
 import { requireAdminPassword } from "./lib/http.mjs";
@@ -66,6 +67,12 @@ export async function handler(event) {
     if (method === "POST" && path === "/admin/session") {
       requireAdminPassword(event);
       return response(event, 200, { success: true, data: { authenticated: true } });
+    }
+    if (method === "POST" && path === "/admin/member-registry") {
+      return response(event, 200, {
+        success: true,
+        data: await upsertMemberRegistry(event.body, event),
+      });
     }
     if (method === "POST" && path === "/fan-growth/dataset") {
       return response(event, 200, {
