@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { EditableTable } from "../../components/EditableTable";
 import { StatCard } from "../../components/StatCard";
+import { AchievementName } from "../achievements/AchievementName";
+import { buildMemberAchievementStacks } from "../achievements/achievementUtils";
 import { formatNumber, formatRate, formatSignedNumber } from "../../lib/format";
 import { dataRepository } from "../../lib/repository";
 import type { FanGrowthCategory } from "../../lib/types";
@@ -141,6 +143,10 @@ export function GeneralView({ category, dataVersion }: GeneralViewProps) {
     [datasetsByPeriod, selectedPeriodId],
   );
   const selectedPeriodIndex = historyDatasets.findIndex((item) => item.periodId === selectedPeriodId);
+  const achievementStacks = useMemo(
+    () => buildMemberAchievementStacks(historyDatasets.slice(0, Math.max(0, selectedPeriodIndex + 1))),
+    [historyDatasets, selectedPeriodIndex],
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -445,7 +451,7 @@ export function GeneralView({ category, dataVersion }: GeneralViewProps) {
                 >
                   BEST {index + 1}
                 </div>
-                <div className="mt-4 text-2xl font-semibold tracking-tight">{row.name}</div>
+                <AchievementName name={row.name} stacks={achievementStacks.get(row.memberId) ?? 0} className="mt-4 text-2xl font-semibold tracking-tight" />
                 <div className="mt-4 grid gap-2 text-sm opacity-80">
                   <div>{formatSignedNumber(row.increase)}</div>
                   <div>
@@ -502,7 +508,7 @@ export function GeneralView({ category, dataVersion }: GeneralViewProps) {
                       window.requestAnimationFrame(() => document.getElementById("member-trend")?.scrollIntoView({ behavior: "smooth", block: "start" }));
                     }}
                     className="font-semibold text-slate-900 underline decoration-slate-300 underline-offset-4 hover:text-sky-700"
-                  >{row.name}</button>
+                  ><AchievementName name={row.name} stacks={achievementStacks.get(row.memberId) ?? 0} /></button>
                 </div>
               ),
             },

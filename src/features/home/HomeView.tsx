@@ -2,12 +2,15 @@ import { useEffect, useState } from "react";
 import heroImage from "../../assets/home-hero.svg";
 import { formatNumber, formatSignedNumber } from "../../lib/format";
 import { dataRepository } from "../../lib/repository";
+import { AchievementName } from "../achievements/AchievementName";
+import { buildMemberAchievementStacks } from "../achievements/achievementUtils";
 import { buildComputedRecords } from "../fan-growth/fanGrowthUtils";
 import type { FanGrowthDataset, FanGrowthComputedRecord } from "../fan-growth/fanGrowthTypes";
 
 type GroupLeaders = {
   dataset: FanGrowthDataset | null;
   leaders: FanGrowthComputedRecord[];
+  achievementStacks: Map<string, number>;
 };
 
 type HomeViewProps = {
@@ -19,12 +22,14 @@ function LeaderColumn({
   title,
   periodLabel,
   leaders,
+  achievementStacks,
   color,
   onOpen,
 }: {
   title: string;
   periodLabel: string;
   leaders: FanGrowthComputedRecord[];
+  achievementStacks: Map<string, number>;
   color: "amber" | "ice";
   onOpen: () => void;
 }) {
@@ -46,7 +51,7 @@ function LeaderColumn({
         {leaders.length ? leaders.map((leader, index) => (
           <div key={leader.memberId} className={`flex items-center gap-3 rounded-2xl px-3 py-3 ${index === 0 ? palette.rail : "bg-slate-50"}`}>
             <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white text-xs font-extrabold shadow-sm ${palette.medal}`}>0{index + 1}</span>
-            <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">{leader.name}</span>
+            <AchievementName name={leader.name} stacks={achievementStacks.get(leader.memberId) ?? 0} className="min-w-0 flex-1 text-sm font-semibold text-slate-800" />
             <span className={`shrink-0 text-sm font-bold tabular-nums ${palette.amount}`}>{formatSignedNumber(leader.increase)}</span>
           </div>
         )) : <div className="rounded-2xl bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">등록된 월간 기록이 없습니다.</div>}
@@ -61,13 +66,13 @@ function makeLeaders(datasets: FanGrowthDataset[]): GroupLeaders {
   const leaders = dataset
     ? buildComputedRecords(dataset.records).filter((record) => !record.isNew).slice(0, 3)
     : [];
-  return { dataset, leaders };
+  return { dataset, leaders, achievementStacks: buildMemberAchievementStacks(datasets) };
 }
 
 export function HomeView({ dataVersion, onOpen }: HomeViewProps) {
   const [groups, setGroups] = useState<Record<"south" | "north", GroupLeaders>>({
-    south: { dataset: null, leaders: [] },
-    north: { dataset: null, leaders: [] },
+    south: { dataset: null, leaders: [], achievementStacks: new Map() },
+    north: { dataset: null, leaders: [], achievementStacks: new Map() },
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -103,7 +108,7 @@ export function HomeView({ dataVersion, onOpen }: HomeViewProps) {
       {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
       <section className="grid items-stretch gap-4 xl:grid-cols-[minmax(250px,0.9fr)_minmax(340px,1.25fr)_minmax(250px,0.9fr)]">
         <div className="order-2 xl:order-1">
-          <LeaderColumn title="남극곰" periodLabel={groups.south.dataset?.periodLabel ?? ""} leaders={groups.south.leaders} color="amber" onOpen={() => onOpen("south")} />
+          <LeaderColumn title="남극곰" periodLabel={groups.south.dataset?.periodLabel ?? ""} leaders={groups.south.leaders} achievementStacks={groups.south.achievementStacks} color="amber" onOpen={() => onOpen("south")} />
         </div>
         <div className="relative order-1 min-h-[360px] overflow-hidden rounded-[32px] border border-white/70 bg-[#dbe9ef] shadow-[0_28px_80px_rgba(20,43,61,0.13)] xl:order-2">
           {heroImageAvailable ? <img src={heroImage} alt="메인 대문 이미지" className="absolute inset-0 h-full w-full object-cover" onError={() => setHeroImageAvailable(false)} /> : null}
@@ -128,7 +133,7 @@ export function HomeView({ dataVersion, onOpen }: HomeViewProps) {
           {loading ? <div className="absolute bottom-0 left-0 h-1 w-full overflow-hidden bg-white/20"><div className="h-full w-1/3 animate-pulse rounded-full bg-white/80" /></div> : null}
         </div>
         <div className="order-3">
-          <LeaderColumn title="북극곰" periodLabel={groups.north.dataset?.periodLabel ?? ""} leaders={groups.north.leaders} color="ice" onOpen={() => onOpen("north")} />
+          <LeaderColumn title="북극곰" periodLabel={groups.north.dataset?.periodLabel ?? ""} leaders={groups.north.leaders} achievementStacks={groups.north.achievementStacks} color="ice" onOpen={() => onOpen("north")} />
         </div>
       </section>
       <section className="grid gap-3 md:grid-cols-3">
