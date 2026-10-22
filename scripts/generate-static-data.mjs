@@ -8,7 +8,7 @@ import {
   isPeriodIdValidForCategory,
   normalizeMemberId,
   parseNonNegativeInteger,
-} from "../api/server/shared/fan-growth-validation.mjs";
+} from "../server/shared/fan-growth-validation.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

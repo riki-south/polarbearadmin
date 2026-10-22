@@ -6,7 +6,7 @@ import {
   isPeriodIdValidForCategory,
   normalizeMemberId,
   parseNonNegativeInteger,
-} from "../../../api/server/shared/fan-growth-validation.mjs";
+} from "../../../server/shared/fan-growth-validation.mjs";
 import type {
   FanGrowthComputedRecord,
   FanGrowthDataset,

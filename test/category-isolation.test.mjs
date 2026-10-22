@@ -3,9 +3,9 @@ import test from "node:test";
 import {
   buildFanGrowthDatasetObjectKey,
   isFanGrowthDatasetObjectKey,
-} from "../api/server/lib/category-keys.mjs";
-import { requireCategory } from "../api/server/lib/http.mjs";
-import { selectPreferredDatasetObjectKeys } from "../api/server/lib/fan-growth.mjs";
+} from "../server/lib/category-keys.mjs";
+import { requireCategory } from "../server/lib/http.mjs";
+import { selectPreferredDatasetObjectKeys } from "../server/lib/fan-growth.mjs";
 
 const PREFIX = "fan-growth/";
 const buildDatasetObjectKey = (category, periodId) =>

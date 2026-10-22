@@ -4,7 +4,7 @@ import {
   isPeriodIdValidForCategory,
   normalizeMemberId,
   parseNonNegativeInteger,
-} from "../api/server/shared/fan-growth-validation.mjs";
+} from "../server/shared/fan-growth-validation.mjs";
 
 test("monthly periods reject impossible months", () => {
   assert.equal(isPeriodIdValidForCategory("south-monthly", "2026-01"), true);
